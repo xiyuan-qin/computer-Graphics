@@ -98,6 +98,59 @@ void main()
 }
 )glsl";
 
+// 在 main 函数或任何其他函数之前添加这个新函数
+void drawAxes() {
+    // 关闭着色器，使用 OpenGL 的固定管线功能来画简单的带颜色的线
+    glUseProgram(0); 
+
+    // 设置线宽
+    glLineWidth(2.0f);
+
+    glBegin(GL_LINES);
+    // X轴 (红色)
+    glColor3f(1.0f, 0.0f, 0.0f);
+    glVertex3f(0.0f, 0.0f, 0.0f);
+    glVertex3f(1.0f, 0.0f, 0.0f);
+    // Y轴 (绿色)
+    glColor3f(0.0f, 1.0f, 0.0f);
+    glVertex3f(0.0f, 0.0f, 0.0f);
+    glVertex3f(0.0f, 1.0f, 0.0f);
+    // Z轴 (蓝色)
+    glColor3f(0.0f, 0.0f, 1.0f);
+    glVertex3f(0.0f, 0.0f, 0.0f);
+    glVertex3f(0.0f, 0.0f, 1.0f);
+    glEnd();
+
+    // 恢复使用我们的着色器程序，以便后续绘制球体
+    glUseProgram(shaderProgram);
+}
+
+void idle()
+{
+    // 使用静态变量来记录上一帧的时间
+    static float lastTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+    
+    // 获取当前时间
+    float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+    // 计算时间差 (delta time)
+    float deltaTime = currentTime - lastTime;
+    // 更新上一帧的时间
+    lastTime = currentTime;
+    
+    // --- 自动旋转 ---
+    // 只有在鼠标没有拖拽时才执行自动旋转
+    if (!arcball_on) {
+        // 根据时间差计算当前帧需要旋转的角度
+        float rotate_angle = auto_rotate_speed * deltaTime * 50.0f;
+        glm::quat auto_rot = glm::angleAxis(glm::radians(rotate_angle), auto_rotate_axis);
+        // 将自动旋转累加到总旋转中
+        final_rotation = auto_rot * final_rotation;
+    }
+    
+    // 请求 GLUT 在下一个循环中重绘窗口，这会触发 display() 函数的调用
+    glutPostRedisplay();
+}
+
 
 int main(int argc, char** argv)
 {
@@ -126,54 +179,52 @@ int main(int argc, char** argv)
 
 void display()
 {
-    // --- 背景色 ---
+    // --- 1. 清理屏幕 ---
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glUseProgram(shaderProgram);
-
-    // --- 视图和投影矩阵 ---
+    // --- 2. 计算变换矩阵 ---
+    // 投影矩阵 (决定了视野范围)
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+    // 视图矩阵 (决定了相机位置和朝向)
     glm::vec3 camera_pos = glm::vec3(0.0f, 0.0f, 3.0f);
     glm::mat4 view = glm::lookAt(camera_pos, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    // 模型矩阵 (包含了物体的旋转、平移、缩放，这里只有旋转)
+    glm::mat4 model = glm::toMat4(final_rotation); 
+
+    // --- 3. 绘制坐标轴 (使用固定管线) ---
+    // 设置 OpenGL 的旧版矩阵堆栈
+    glMatrixMode(GL_PROJECTION);
+    glLoadMatrixf(glm::value_ptr(projection));
+    glMatrixMode(GL_MODELVIEW);
+    // 将视图矩阵和模型矩阵相乘，这样坐标轴就会和球体一样被相机观察，并一起旋转
+    glLoadMatrixf(glm::value_ptr(view * model)); 
+    // 调用绘制函数
+    drawAxes();
+
+    // --- 4. 绘制球体 (使用着色器) ---
+    // 激活我们的着色器程序
+    glUseProgram(shaderProgram);
+
+    // 将矩阵作为 uniform 变量传递给着色器
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
-    
-    // --- 模型矩阵 (应用旋转) ---
-    // 注意: GLUT的回调逻辑中，current_rotation 在拖拽时已经合并了
-    glm::mat4 model = glm::toMat4(final_rotation); 
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-
-    // --- 设置光照 Uniforms ---
-    glm::vec3 lightPos(1.2f, 1.0f, 2.0f);
+    
+    // 将光照相关的 uniform 变量传递给着色器
+    glm::vec3 lightPos(5.0f, 5.0f, 2.0f); // 使用一个更偏的光源位置
     glUniform3fv(glGetUniformLocation(shaderProgram, "lightPos"), 1, &lightPos[0]);
     glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, &camera_pos[0]);
     glUniform3f(glGetUniformLocation(shaderProgram, "objectColor"), 0.8f, 0.3f, 0.31f);
     glUniform3f(glGetUniformLocation(shaderProgram, "lightColor"), 1.0f, 1.0f, 1.0f);
 
-    // --- 绘制球体 ---
+    // 绑定球体的顶点数组对象(VAO)并绘制
     glBindVertexArrayAPPLE(VAO);
     glDrawArrays(GL_TRIANGLES, 0, sphere_vertex_count);
-    glBindVertexArrayAPPLE(0);
+    glBindVertexArrayAPPLE(0); // 解绑VAO
 
-    // --- 交换缓冲区 ---
+    // --- 5. 交换前后缓冲区，显示画面 ---
     glutSwapBuffers();
-}
-
-void idle()
-{
-    static float lastTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-    float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-    float deltaTime = currentTime - lastTime;
-    lastTime = currentTime;
-    
-    // --- 自动旋转 ---
-    if (!arcball_on) {
-        glm::quat auto_rot = glm::angleAxis(glm::radians(auto_rotate_speed * deltaTime * 50.0f), auto_rotate_axis);
-        final_rotation = auto_rot * final_rotation;
-    }
-    
-    glutPostRedisplay(); // 请求重绘
 }
 
 
