@@ -44,22 +44,14 @@ void scanlineFill(const std::vector<Point>& polygon, int window_height) {
 
     // 3. 逐行扫描
     for (int y = minY; y < maxY; ++y) {
-        // a. 将 ET 中 y 对应的边移入 AET 并保持 AET 有序
+        // a. 将 ET 中 y 对应的边全部移入 AET
         if (et[y]) {
             Edge* p = et[y];
             while (p) {
-                Edge* next_p = p->next;
-                // 插入排序思想，将新边插入到AET正确位置
-                Edge* q_prev = nullptr;
-                Edge* q = aet;
-                while (q && q->x < p->x) {
-                    q_prev = q;
-                    q = q->next;
-                }
-                if (q_prev) q_prev->next = p;
-                else aet = p;
-                p->next = q;
-                p = next_p;
+                Edge* next = p->next;
+                p->next = aet;
+                aet = p;
+                p = next;
             }
         }
         
@@ -82,9 +74,30 @@ void scanlineFill(const std::vector<Point>& polygon, int window_height) {
                 curr = curr->next;
             }
         }
+        
+        // c. 对整个 AET 按 x 坐标进行排序（使用冒泡排序，简单可靠）
+        if (aet && aet->next) {
+            bool sorted = false;
+            while (!sorted) {
+                sorted = true;
+                Edge* p = aet;
+                Edge** pp = &aet;
+                while (p && p->next) {
+                    if (p->x > p->next->x) {
+                        sorted = false;
+                        Edge* temp = p->next;
+                        p->next = temp->next;
+                        temp->next = p;
+                        *pp = temp;
+                    }
+                    pp = &((*pp)->next);
+                    p = *pp;
+                }
+            }
+        }
 
-        // c. 填充像素
-        glColor3f(0.0f, 0.5f, 0.8f); // 设置填充颜色
+        // d. 填充像素
+        glColor3f(0.0f, 0.5f, 0.8f);
         glBegin(GL_POINTS);
         for (Edge* p = aet; p && p->next; p = p->next->next) {
             for (int x = (int)ceil(p->x); x < (int)floor(p->next->x); ++x) {
@@ -93,11 +106,9 @@ void scanlineFill(const std::vector<Point>& polygon, int window_height) {
         }
         glEnd();
 
-        // d. 更新 AET 中每条边的 x 值
+        // e. 更新 AET 中每条边的 x 值
         for (Edge* p = aet; p; p = p->next) {
             p->x += p->inv_m;
         }
     }
-
-    // 注意：函数末尾的 ET 清理循环已被移除，因为 AET 中已经处理了内存释放
 }
