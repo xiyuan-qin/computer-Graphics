@@ -1,0 +1,3 @@
+/Users/qinxiyuan/code/computer Graphics/exp5/build/CMakeFiles/bezier.dir
+/Users/qinxiyuan/code/computer Graphics/exp5/build/CMakeFiles/edit_cache.dir
+/Users/qinxiyuan/code/computer Graphics/exp5/build/CMakeFiles/rebuild_cache.dir
