@@ -7,8 +7,10 @@
 #define GL_SILENCE_DEPRECATION // 屏蔽macOS的OpenGL废弃警告
 
 #include <GLUT/glut.h> // macOS专用头文件路径
+#include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <numeric>
 #include <string>
 #include <vector>
 
